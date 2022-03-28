@@ -1,6 +1,7 @@
 """ BlueSky plugin template. The text you put here will be visible
     in BlueSky as the description of your plugin. """
 import numpy as np
+import os
 # Import the global bluesky objects. Uncomment the ones you need
 from bluesky import stack, settings, navdb, traf, sim, scr, tools
 from bluesky import navdb
@@ -60,7 +61,9 @@ def init_plugin():
     global positions
     global start
     global wind
+    global wind2
     global opts1
+    global opts2
     global worst_goals
     global speedlist
     global speedlistpointer
@@ -72,6 +75,11 @@ def init_plugin():
     num_success_train = []
     num_collisions_train = []
 
+    pid = os.getpid()
+    print('pid={}'.format(pid))
+    with open('bluesky_pid.txt','w') as f:
+        f.write(str(pid))
+    
     num_success = []
     num_collisions = []
     previous_action = {}
@@ -94,9 +102,9 @@ def init_plugin():
     print(route_queue)
     route_queue = [30,30,20]
     path = "speedbeforetrain.csv"
-    #f = csv.reader(open(path,'r'))
-    #for i in f:
-        #speedlist.append(i)
+    f = csv.reader(open(path,'r'))
+    for i in f:
+        speedlist.append(i)
     speedlistpointer = 0
     path = "route (copy).csv"
     f = csv.reader(open(path,'r'))
@@ -105,6 +113,7 @@ def init_plugin():
     routequeuepointer = 0
     
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
+    agent.load("train_model_B.h5")
     counter = 0
     start = time.time()
     opts1 = {
@@ -115,7 +124,17 @@ def init_plugin():
         "height": 200,
         "legend": ['goals_made','collisions_made']
     }
+    opts2 = {
+        "title": 'train_data2',
+        "rownames":['KL0','KL1','KL2','KL3','KL4','KL5','KL6','KL7','KL8','KL9','KL10','KL11','KL12','KL13','KL14','KL15','KL16','KL17','KL18','KL19','KL20','KL21','KL22','KL23','KL24','KL25','KL26','KL27','KL28','KL29'],
+        "xlabel": 'id',
+        "ylabel": 'speed',
+        "width": 600,
+        "height": 400,
+        "numbins":30
+    }
     wind = Visdom()
+    wind2 = Visdom()
         # 初始化窗口信息
     
     wind.line(X=[0.], # Y的第一个点的坐标
@@ -123,7 +142,7 @@ def init_plugin():
 		  win = 'train_data', # 窗口的名称
 		  opts = opts1 # 图像的标例
 )
-
+    wind2.bar(X=np.zeros(30),win = 'train_data2',opts=opts2)
 
     # Addtional initilisation code
     # Configuration parameters
@@ -186,6 +205,11 @@ def update():
     global speedlistpointer
     global routequeuelist
     global routequeuepointer
+    global opts2
+    global wind2
+    global speedvisdomlist
+    
+    speedvisdomlist = [0]*30
 
     store_terminal = {}
 
@@ -196,6 +220,8 @@ def update():
             for i in range(len(positions)):
                 lat,lon,glat,glon,h = positions[i]
                 stack.stack('CRE KL{}, A320, {}, {}, {}, 25000, 300'.format(ac_counter,lat,lon,h))
+                speedvisdomlist[ac_counter] = 300
+                wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
                 stack.stack('ADDWPT KL{} {}, {}'.format(ac_counter,glat,glon))
                 route_keeper[ac_counter] = i
                 num_ac += 1
@@ -206,15 +232,17 @@ def update():
                 if counter == route_queue[k]:
                     lat,lon,glat,glon,h = positions[k]
                     stack.stack('CRE KL{}, A320, {}, {}, {}, 25000, 300'.format(ac_counter,lat,lon,h))
+                    speedvisdomlist[ac_counter] = 300
+                    wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
                     stack.stack('ADDWPT KL{} {}, {}'.format(ac_counter,glat,glon))
                     route_keeper[ac_counter] = k
 
                     num_ac += 1
                     ac_counter += 1
-                    route_queue[k] = int(routequeuelist[routequeuepointer][1])
-                    routequeuepointer+=1
+
                     #route_queue[k] = counter + random.choices(choices,k=1)[0]
-                    #print('k = {} route_queue = {}'.format(k,route_queue[k]))
+                    route_queue[k] = int(routequeuelist[routequeuepointer][1])
+                    routequeuepointer = routequeuepointer+1
                     
 
                     if ac_counter == max_ac:
@@ -223,16 +251,18 @@ def update():
 
     store_terminal = np.zeros(len(traf.id),dtype=int)
     for i in range(len(traf.id)):
-        T,type_ = agent.update(traf,i,route_keeper)
+        T,type_,nearest = agent.update(traf,i,route_keeper)
         id_ = traf.id[i]
 
         if T:
             stack.stack('DEL {}'.format(id_))
+            speedvisdomlist[int(id_[2:])] = 0
+            wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
             num_ac -=1
             if type_ == 1:
                 collisions += 1
                 if collisions%2 ==0:
-                    stack.stack('echo plane {} and plane {} had collision'.format(traf.id[i-1],id_))
+                    stack.stack('echo plane {} and plane {} had collision'.format(traf.id[nearest],id_))
             if type_ == 2:
                 success += 1
 
@@ -277,6 +307,7 @@ def update():
 
         for j in range(len(id_sub)):
             id_ = id_sub[j]
+            #print("id:{}".format(id_))
 
             # This is for updating s, sp, ...
             if not id_ in last_observation.keys():
@@ -293,21 +324,18 @@ def update():
 
 
 
-            action = np.random.choice(agent.action_size,1,p=policy[j].flatten())[0]
-            #action = int(speedlist[speedlistpointer][1])
-            speedlistpointer = speedlistpointer+1          
-            path = "speedbeforetrain.csv"
-            with open(path, 'a+') as f:
-                csv_write = csv.writer(f)
-                data_row = [id_,action]
-                csv_write.writerow(data_row)
+            #action = np.random.choice(agent.action_size,1,p=policy[j].flatten())[0]
+            action = int(speedlist[speedlistpointer][1])
+            speedlistpointer = speedlistpointer+1
             speed = agent.speeds[action]
             index = traf.id2idx(id_)
-
             if action == 1: #hold
                 speed = int(np.round((traf.cas[index]/tools.geo.nm)*3600))
+                #print(speed)
 
-            stack.stack('{} SPD {}'.format(id_,speed))
+            stack.stack('SPD {} {}'.format(id_,speed))
+            speedvisdomlist[int(id_[2:])] = speed
+            wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
             new_actions[id_] = action
 
 
@@ -344,6 +372,8 @@ def reset():
     global speedlistpointer
     global routequeuepointer
 
+    #if (agent.episode_count+1) % 5 == 0:
+        #agent.train()
     speedlistpointer = 0
     routequeuepointer = 0
     end = time.time()

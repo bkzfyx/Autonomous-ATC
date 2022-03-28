@@ -1,6 +1,7 @@
 """ BlueSky plugin template. The text you put here will be visible
     in BlueSky as the description of your plugin. """
 import numpy as np
+import os
 # Import the global bluesky objects. Uncomment the ones you need
 from bluesky import stack, settings, navdb, traf, sim, scr, tools
 from bluesky import navdb
@@ -32,7 +33,6 @@ tf.disable_eager_execution()
 
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
-### show the training process with random routes and speeds
 def init_plugin():
 
 
@@ -64,7 +64,10 @@ def init_plugin():
     global opts1
     global opts2
     global worst_goals
-
+    pid = os.getpid()
+    print('pid={}'.format(pid))
+    with open('bluesky_pid.txt','w') as f:
+        f.write(str(pid))
     num_success_train = []
     num_collisions_train = []
 
@@ -90,7 +93,6 @@ def init_plugin():
     
     
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
-    agent.load('train_model_B.h5')
     counter = 0
     start = time.time()
     opts1 = {

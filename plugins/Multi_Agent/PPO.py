@@ -84,6 +84,7 @@ def getClosestAC_Distance(self,state,traf,route_keeper):
                 continue
 
 
+
             return dist[i][0],int(dist[i][1])
 
 
@@ -92,8 +93,6 @@ def getClosestAC_Distance(self,state,traf,route_keeper):
 
 
     return np.inf,np.inf
-
-    
 
 
 def proximal_policy_optimization_loss(advantage, old_prediction):
@@ -134,7 +133,15 @@ class PPO_Agent:
         self.getRouteDistances()
         self.model_check = []
         self.model = self._build_PPO()
+
         self.count = 0
+        #self.wind = Visdom()
+        # 初始化窗口信息
+        #self.wind.line([0.], # Y的第一个点的坐标
+	#	  [0.], # X的第一个点的坐标
+	#	  win = 'train_loss', # 窗口的名称
+	#	  opts = dict(title = 'train_loss') # 图像的标例
+#)
 
 
 
@@ -481,7 +488,6 @@ class PPO_Agent:
         if d_goal < 5 and T == 0:
             T = True
             type_ = 2
-            nearest = 100
 
         self.dist_goal[traf.id[index]] = d_goal
 

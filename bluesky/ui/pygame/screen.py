@@ -190,7 +190,7 @@ class Screen:
             reso = (self.width, self.height)
             self.win = pg.display.set_mode(reso)
 
-        pg.display.set_caption("BlueSky Open ATM Simulator (F11 = Full Screen)", "BlueSky")
+        pg.display.set_caption("AirTop Open ATM Simulator (F11 = Full Screen)", "BlueSky")
         iconpath = imgpath = "data/graphics/icon.gif"
         iconbmp = pg.image.load(iconpath)
         pg.display.set_icon(iconbmp)
@@ -1079,7 +1079,7 @@ class Screen:
 
         di = pg.display.Info()
 
-        pg.display.set_caption("AirTop Open ATM Simulator (F11 = Full Screen)",
+        pg.display.set_caption("BlueSky Open ATM Simulator (F11 = Full Screen)",
                                "BlueSky")
         iconpath = imgpath = "data/graphics/icon.gif"
         iconbmp = pg.image.load(iconpath)

@@ -1,6 +1,7 @@
 """ BlueSky plugin template. The text you put here will be visible
     in BlueSky as the description of your plugin. """
 import numpy as np
+import os
 # Import the global bluesky objects. Uncomment the ones you need
 from bluesky import stack, settings, navdb, traf, sim, scr, tools
 from bluesky import navdb
@@ -33,7 +34,6 @@ tf.disable_eager_execution()
 
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
-### show the simulation after train with a set of selected routes and speeds
 def init_plugin():
 
 
@@ -74,7 +74,11 @@ def init_plugin():
     speedlist = []
     num_success_train = []
     num_collisions_train = []
-
+    
+    pid = os.getpid()
+    print('pid={}'.format(pid))
+    with open('bluesky_pid.txt','w') as f:
+        f.write(str(pid))
     num_success = []
     num_collisions = []
     previous_action = {}
@@ -101,13 +105,14 @@ def init_plugin():
     for i in f:
         speedlist.append(i)
     speedlistpointer = 0
-    path = "route(copy).csv"
+    path = "route (copy).csv"
     f = csv.reader(open(path,'r'))
     for i in f:
         routequeuelist.append(i)
     routequeuepointer = 0
     
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
+    agent.load("train_model_B.h5")
     counter = 0
     start = time.time()
     opts1 = {
@@ -229,8 +234,11 @@ def update():
                     wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
                     stack.stack('ADDWPT KL{} {}, {}'.format(ac_counter,glat,glon))
                     route_keeper[ac_counter] = k
+
                     num_ac += 1
                     ac_counter += 1
+
+                    #route_queue[k] = counter + random.choices(choices,k=1)[0]
                     route_queue[k] = int(routequeuelist[routequeuepointer][1])
                     routequeuepointer = routequeuepointer+1
                     
@@ -321,8 +329,9 @@ def update():
             index = traf.id2idx(id_)
             if action == 1: #hold
                 speed = int(np.round((traf.cas[index]/tools.geo.nm)*3600))
+                #print(speed)
 
-            stack.stack('{} SPD {}'.format(id_,speed))
+            stack.stack('SPD {} {}'.format(id_,speed))
             speedvisdomlist[int(id_[2:])] = speed
             wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
             new_actions[id_] = action
