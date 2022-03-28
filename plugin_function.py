@@ -3,7 +3,7 @@ import subprocess
 from subprocess import Popen, PIPE
 import time
 def train_agent(state):
-    with open('bluesky_pid.txt','r') as f:
+    with open('/home/bkz/Autonomous-ATC/bluesky_pid.txt','r') as f:
         pid = f.read()
     if state == 0:
     #train the agent
@@ -15,7 +15,6 @@ def train_agent(state):
                 time.sleep(1)
             else:
                 print('training done')
-                show_train_result()
                 break
     elif state == 1:
     #continue training
@@ -90,16 +89,16 @@ def kill(pid):
 
 def stop(pid):
     if os.name == 'posix':
-        cmd = 'kill -STOP'+str(pid)
+        cmd = 'kill -STOP '+str(pid)
         try:
             os.system(cmd)
-            print(pid,'continue')
+            print(pid,'stop')
         except Exception as e:
             print(e)
 
 def run(pid):
     if os.name == 'posix':
-        cmd = 'kill -CONT'+str(pid)
+        cmd = 'kill -CONT '+str(pid)
         try:
             os.system(cmd)
             print(pid,'continue')
