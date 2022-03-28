@@ -64,7 +64,7 @@ def init_plugin():
     global wind2
     global opts1
     global opts2
-    global worst_goals
+    #global worst_goals
     global speedlist
     global speedlistpointer
     global routequeuelist
@@ -112,7 +112,7 @@ def init_plugin():
     routequeuepointer = 0
     
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
-    agent.load("train_model_B.h5")
+    #agent.load("train_model_B.h5")
     counter = 0
     start = time.time()
     opts1 = {
@@ -366,7 +366,7 @@ def reset():
     global choices
     global positions
     global start
-    global worst_goals
+    #global worst_goals
     global speedlistpointer
     global routequeuepointer
 
@@ -411,18 +411,18 @@ def reset():
     if agent.episode_count > 150:
         df = pd.DataFrame(t_success)
         if float(df.rolling(150,150).mean().max()) >= best_reward:
-            agent.save(True,case_study='TEST')
+            #agent.save(True,case_study='TEST')
             best_reward = float(df.rolling(150,150).mean().max())
 
 
-    agent.save(case_study='TEST')
+    #agent.save(case_study='TEST')
 
-    if agent.episode_count ==0:
-        agent.save_worst(goals_made,case_study='TEST')
-        worst_goals = goals_made
-    elif goals_made < worst_goals:
-        agent.save_worst(goals_made,case_study='TEST')
-        worst_goals = goals_made
+    #if agent.episode_count ==0:
+        #agent.save_worst(goals_made,case_study='TEST')
+        #worst_goals = goals_made
+    #elif goals_made < worst_goals:
+        #agent.save_worst(goals_made,case_study='TEST')
+        #worst_goals = goals_made
 
     print("Episode: {} | Reward: {} | Best Reward: {}".format(agent.episode_count,goals_made,best_reward))
 
