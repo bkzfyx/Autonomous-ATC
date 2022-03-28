@@ -40,6 +40,8 @@ def main():
     # also advise latest version
     missingmodules = {"OpenGL": "pyopengl and pyopengl-accelerate"}
 
+    serv_addr = None
+
     ### Parse command-line arguments ###
     # BlueSky.py modes:
     # server-gui: Start gui and simulation server
@@ -47,12 +49,29 @@ def main():
     # server-headless: start server only
     # detached: start only one simulation node, without networking
     #   ==> useful for calling bluesky from within another python script/program
+    if '--help' in sys.argv:
+        print("   *****   BlueSky Open ATM simulator *****")
+        print("Distributed under GNU General Public License v3")
+        print("Usage: python BlueSky.py [options]")
+        print("Options:")
+        print("--help               Display this information.")
+        print("--headless           Start simulation server only, without GUI.")
+        print("--client             Start client only, which can connect to an already running server.")
+        print("--sim                Start only one simulation node.")  
+        print("--detached           Start only one simulation node, without networking.")
+        print("--discoverable       Make simulation server discoverable. (Default in headless mode.)")
+        print("--scenfile <file>    Load scenario file on startup.")
+        quit()  
+
     if '--detached' in sys.argv:
         mode = 'sim-detached'
     elif '--sim' in sys.argv:
         mode = 'sim'
     elif '--client' in sys.argv:
         mode = 'client'
+        pos = sys.argv.index('--client')
+        if len(sys.argv) > pos + 1:
+            serv_addr = sys.argv[pos + 1]
     elif '--headless' in sys.argv:
         mode = 'server-headless'
     else:
@@ -78,8 +97,8 @@ def main():
         # Only start a simulation node if called with --sim or --detached
         if mode[:3] == 'sim':
             if mode[-8:] != 'detached':
-                bs.sim.connect()
-            bs.sim.run()
+                bs.net.connect()
+            bs.net.run()
         else:
             # Only print start message in the non-sim cases to avoid printing
             # this for every started node
@@ -96,12 +115,12 @@ def main():
         # Start gui if client or main server/gui combination is started here
         if mode in ('client', 'server-gui'):
             from bluesky.ui import qtgl
-            qtgl.start(mode)
+            qtgl.start(mode, serv_addr)
 
     # Give info on missing module
     except ImportError as error:
         modulename = missingmodules.get(error.name) or error.name
-        if modulename is None:
+        if modulename is None or 'bluesky' in modulename:
             raise error
         print("Bluesky needs", modulename)
         print("Run setup-python.bat (Windows) or check requirements.txt (other systems)")

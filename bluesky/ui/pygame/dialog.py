@@ -3,6 +3,7 @@ Standard Dialog modules, using Tkinter
 
 Created by  : Jacco M. Hoekstra
 """
+import sys
 try:
     from tkinter import *
     import tkinter.filedialog as filedialog
@@ -28,19 +29,21 @@ def fileopen():
     dirpath = settings.scenario_path 
     os.chdir(dirpath)
 
-    master = Tk()
-    master.withdraw()  # hiding tkinter window
-    master.focus_set()
+    #master = Tk()
+    #master.withdraw()  # hiding tkinter window
+    #master.focus_set()
     
-    file_path = filedialog.askopenfilename(title="Open scenario file", 
-        filetypes=[("Scenario files",".scn"),("All files",".*")],\
-        initialdir=".")
+    #file_path = filedialog.askopenfilename(title="Open scenario file", 
+    #    filetypes=[("Scenario files",".scn"),("All files",".*")],\
+    #    initialdir=".")
 
     # Close Tk, return to working directory
-    master.quit()
+    #master.quit()
     os.chdir(cdir)
+    file_path = "/home/bkz/Autonomous-ATC-N_Closestnew/scenario/multi_agent.scn"
     if type(file_path)==str or type(file_path)==str:
-        fpath = str(file_path)
+        #fpath = str(file_path)
+        fpath = "/home/bkz/Autonomous-ATC-N_Closestnew/scenario/multi_agent.scn"
     else:
         print("Warning: Unexpected type from FileDialog:",file_path)
         print(type(file_path))

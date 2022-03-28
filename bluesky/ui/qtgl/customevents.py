@@ -1,6 +1,7 @@
 """ Definition of custom QEvent objects for QtGL gui. """
 from PyQt5.QtCore import QEvent
 
+
 NUMCUSTOMEVENTS    = 2
 ACDataEventType    = 1000
 RouteDataEventType = 1001
@@ -8,7 +9,7 @@ RouteDataEventType = 1001
 
 class RouteDataEvent(QEvent):
     def __init__(self, data=None):
-        super(RouteDataEvent, self).__init__(RouteDataEventType)
+        super().__init__(RouteDataEventType)
         self.aclat  = []
         self.wplat  = []
         self.wplon  = []
@@ -25,7 +26,7 @@ class RouteDataEvent(QEvent):
 
 class ACDataEvent(QEvent):
     def __init__(self, data=None):
-        super(ACDataEvent, self).__init__(ACDataEventType)
+        super().__init__(ACDataEventType)
         self.lat        = []
         self.lon        = []
         self.alt        = []

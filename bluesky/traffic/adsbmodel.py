@@ -2,16 +2,16 @@
 import numpy as np
 import bluesky as bs
 from bluesky.tools.aero import ft
-from bluesky.tools.trafficarrays import TrafficArrays, RegisterElementParameters
+from bluesky.core import Entity
 
 
-class ADSB(TrafficArrays):
+class ADSB(Entity, replaceable=True):
     """ ADS-B model. Implements real-life limitations of ADS-B communication."""
 
     def __init__(self):
-        super(ADSB, self).__init__()
+        super().__init__()
         # From here, define object arrays
-        with RegisterElementParameters(self):
+        with self.settrafarrays():
             # Most recent broadcast data
             self.lastupdate = np.array([])
             self.lat        = np.array([])
@@ -22,16 +22,16 @@ class ADSB(TrafficArrays):
             self.gs         = np.array([])
             self.vs         = np.array([])
 
-        self.SetNoise(False)
+        self.setnoise(False)
 
-    def SetNoise(self, n):
+    def setnoise(self, n):
         self.transnoise = n
         self.truncated  = n
         self.transerror = [1e-4, 100 * ft]  # [degree,m] standard lat/lon distance, altitude error
         self.trunctime  = 0  # [s]
 
     def create(self, n=1):
-        super(ADSB, self).create(n)
+        super().create(n)
 
         self.lastupdate[-n:] = -self.trunctime * np.random.rand(n)
         self.lat[-n:] = bs.traf.lat[-n:]
@@ -41,8 +41,8 @@ class ADSB(TrafficArrays):
         self.tas[-n:] = bs.traf.tas[-n:]
         self.gs[-n:]  = bs.traf.gs[-n:]
 
-    def update(self, time):
-        up = np.where(self.lastupdate + self.trunctime < time)
+    def update(self):
+        up = np.where(self.lastupdate + self.trunctime < bs.sim.simt)
         nup = len(up)
         if self.transnoise:
             self.lat[up] = bs.traf.lat[up] + np.random.normal(0, self.transerror[0], nup)

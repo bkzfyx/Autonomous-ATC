@@ -22,13 +22,17 @@ import bluesky as bs
 class InfoWindow(QTabWidget):
     ''' Top-level window containing simulation information such as plots. '''
     def __init__(self):
-        super(InfoWindow, self).__init__()
+        super().__init__()
         self.setDocumentMode(True)
         self.resize(600, 500)
         self.plottab = None
 
         # Connect to sim data events
         bs.net.stream_received.connect(self.on_simstream_received)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            self.close()
 
     def add_plot_tab(self):
         self.plottab = PlotTab()
@@ -40,14 +44,22 @@ class InfoWindow(QTabWidget):
 
         if not self.plottab:
             self.add_plot_tab()
+
+        # A show flag is sent each time the PLOT command is called
+        if data.pop('show', False):
             self.show()
+
+        # A reset flag is sent upon sim reset to indicate removal of sim plots
+        if data.pop('reset', False):
+            print('plotter gui reset')
+            self.plottab.remove_plots(sender_id)
 
         self.plottab.update_plots(data, sender_id)
 
 class PlotTab(QScrollArea):
     ''' InfoWindow tab for plots. '''
     def __init__(self):
-        super(PlotTab, self).__init__()
+        super().__init__()
         self.layout = QVBoxLayout()
         container = QWidget()
         container.setLayout(self.layout)
@@ -55,6 +67,13 @@ class PlotTab(QScrollArea):
         self.setWidget(container)
         self.setWidgetResizable(True)
         self.plots = dict()
+
+    def remove_plots(self, sender_id):
+        ''' Remove plots from reset simulation from plot window. '''
+        for (sender_plt, fig), plot in dict(self.plots).items():
+            if sender_id == sender_plt:
+                self.layout.removeWidget(plot)
+                self.plots.pop((sender_plt, fig))
 
     def update_plots(self, data, sender):
         ''' Update plots in this tab using incoming data. '''
@@ -77,7 +96,7 @@ class PlotTab(QScrollArea):
 
 class Plot(FigureCanvas):
     def __init__(self, parent, plot_type='line', **kwargs):
-        super(Plot, self).__init__(plt.figure())
+        super().__init__(plt.figure())
         self.setParent(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setFocus()
@@ -120,16 +139,16 @@ class Plot(FigureCanvas):
                 p.axes.autoscale_view()
 
         elif self.plot_type == 'boxplot' and len(ydata):
-                nnewplots = len(ydata) - len(self.data)
-                if nnewplots > 0:
-                    self.data.extend(nnewplots * [[]])
-                for i, d in enumerate(ydata):
-                    self.data[i].extend(d)
-                # self.data = [x.extend(n) for x, n in zip(self.data, ydata)]
-                self.data = [d for d in self.data if d]
-                if len(self.data):
-                    self.axes.cla()
-                    self.axes.boxplot(self.data)
+            nnewplots = len(ydata) - len(self.data)
+            if nnewplots > 0:
+                self.data.extend(nnewplots * [[]])
+            for i, d in enumerate(ydata):
+                self.data[i].extend(d)
+            # self.data = [x.extend(n) for x, n in zip(self.data, ydata)]
+            self.data = [d for d in self.data if d]
+            if len(self.data):
+                self.axes.cla()
+                self.axes.boxplot(self.data)
 
 
         self.draw()

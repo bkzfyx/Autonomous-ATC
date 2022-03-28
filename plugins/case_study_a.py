@@ -1,6 +1,7 @@
 """ BlueSky plugin template. The text you put here will be visible
     in BlueSky as the description of your plugin. """
 import numpy as np
+from visdom import Visdom
 # Import the global bluesky objects. Uncomment the ones you need
 from bluesky import stack, settings, navdb, traf, sim, scr, tools
 from bluesky import navdb
@@ -8,14 +9,15 @@ from bluesky.tools.aero import ft
 from bluesky.tools import geo, areafilter
 from Multi_Agent.PPO import PPO_Agent
 import geopy.distance
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import random
 import pandas as pd
 from operator import itemgetter
 from shapely.geometry import LineString
 import numba as nb
 import time
-
+import csv
+tf.disable_eager_execution()
 ## For running on GPU
 # from keras.backend.tensorflow_backend import set_session
 # from shapely.geometry import LineString
@@ -55,6 +57,9 @@ def init_plugin():
     global choices
     global positions
     global start
+    global wind
+    global opts1
+    global worst_goals
 
     num_success_train = []
     num_collisions_train = []
@@ -68,7 +73,7 @@ def init_plugin():
     success = 0
 
     num_ac = 0
-    max_ac = 10
+    max_ac = 30
     best_reward = -10000000
     ac_counter = 0
     n_states = 5
@@ -78,11 +83,29 @@ def init_plugin():
     positions = np.load('./routes/case_study_a_route.npy')
     choices = [20,25,30] # 4 minutes, 5 minutes, 6 minutes
     route_queue = random.choices(choices,k=positions.shape[0])
+    print(route_queue)
+    route_queue = [20,30]
 
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
+    agent.load("train_model_B.h5")
     counter = 0
     start = time.time()
-
+    opts1 = {
+        "title": 'chart example1',
+        "xlabel": 'x',
+        "ylabel": 'y',
+        "width": 300,
+        "height": 200,
+        "legend": ['goals_made','collisions_made']
+    }
+    wind = Visdom()
+        # 初始化窗口信息
+    
+    wind.line(X=[0.], # Y的第一个点的坐标
+		  Y=[[0.,0.]], # X的第一个点的坐标
+		  win = 'train_data', # 窗口的名称
+		  opts = opts1 # 图像的标例
+)
 
     # Addtional initilisation code
     # Configuration parameters
@@ -184,6 +207,8 @@ def update():
             num_ac -=1
             if type_ == 1:
                 collisions += 1
+                if collisions%2 ==0:
+                    stack.stack('echo plane {} and plane {} had collision'.format(traf.id[i-1],id_))
             if type_ == 2:
                 success += 1
 
@@ -284,7 +309,11 @@ def reset():
     global choices
     global positions
     global start
+    global worst_goals
 
+    collision_list = []
+    for clc in range(30):
+            collision_list.append(False)
     if (agent.episode_count+1) % 5 == 0:
         agent.train()
 
@@ -329,8 +358,14 @@ def reset():
 
     agent.save(case_study='A')
 
-
+    if agent.episode_count ==0:
+        agent.save_worst(goals_made,case_study='A')
+        worst_goals = goals_made
+    elif goals_made < worst_goals:
+        agent.save_worst(goals_made,case_study='A')
+        worst_goals = goals_made
     print("Episode: {} | Reward: {} | Best Reward: {}".format(agent.episode_count,goals_made,best_reward))
+    wind.line(X =[agent.episode_count],Y=[[goals_made,max_ac-goals_made]],win = 'train_data',update='append',opts = opts1)
 
 
     agent.episode_count += 1

@@ -9,9 +9,11 @@ import msgpack
 
 # Local imports
 import bluesky as bs
-
 from .discovery import Discovery
 
+
+# Keep subset of commandline args to pass on to child processes
+childargs = [a for a in sys.argv[1:] if 'headless' not in a]
 
 # Register settings defaults
 bs.settings.set_variable_defaults(max_nnodes=cpu_count(),
@@ -32,8 +34,8 @@ def split_scenarios(scentime, scencmd):
 class Server(Thread):
     ''' Implementation of the BlueSky simulation server. '''
 
-    def __init__(self, headless):
-        super(Server, self).__init__()
+    def __init__(self, discovery):
+        super().__init__()
         self.spawned_processes = list()
         self.running = True
         self.max_nnodes = min(cpu_count(), bs.settings.max_nnodes)
@@ -44,12 +46,12 @@ class Server(Thread):
         self.servers = {self.host_id : dict(route=[], nodes=self.workers)}
         self.avail_workers = dict()
 
-        if bs.settings.enable_discovery or headless:
+        if bs.settings.enable_discovery or discovery:
             self.discovery = Discovery(self.host_id, is_client=False)
         else:
             self.discovery = None
 
-    def sendScenario(self, worker_id):
+    def sendscenario(self, worker_id):
         # Send a new scenario to the target sim process
         scen = self.scenarios.pop(0)
         data = msgpack.packb(scen)
@@ -58,7 +60,7 @@ class Server(Thread):
     def addnodes(self, count=1):
         ''' Add [count] nodes to this server. '''
         for _ in range(count):
-            p = Popen([sys.executable, 'BlueSky.py', '--sim'])
+            p = Popen([sys.executable, 'BlueSky.py', '--sim', *childargs])
             self.spawned_processes.append(p)
 
     def run(self):
@@ -69,18 +71,18 @@ class Server(Thread):
         # Create connection points for clients
         self.fe_event = ctx.socket(zmq.ROUTER)
         self.fe_event.setsockopt(zmq.IDENTITY, self.host_id)
-        self.fe_event.bind('tcp://*:{}'.format(bs.settings.event_port))
+        self.fe_event.bind(f'tcp://*:{bs.settings.event_port}')
         self.fe_stream = ctx.socket(zmq.XPUB)
-        self.fe_stream.bind('tcp://*:{}'.format(bs.settings.stream_port))
-        print('Accepting event connections on port {}, and stream connections on port {}'.format(
-            bs.settings.event_port, bs.settings.stream_port))
+        self.fe_stream.bind(f'tcp://*:{bs.settings.stream_port}')
+        print(f'Accepting event connections on port {bs.settings.event_port},',
+              f'and stream connections on port {bs.settings.stream_port}')
 
         # Create connection points for sim workers
         self.be_event  = ctx.socket(zmq.ROUTER)
         self.be_event.setsockopt(zmq.IDENTITY, self.host_id)
-        self.be_event.bind('tcp://*:{}'.format(bs.settings.simevent_port))
+        self.be_event.bind(f'tcp://*:{bs.settings.simevent_port}')
         self.be_stream = ctx.socket(zmq.XSUB)
-        self.be_stream.bind('tcp://*:{}'.format(bs.settings.simstream_port))
+        self.be_stream.bind(f'tcp://*:{bs.settings.simstream_port}')
 
         # Create poller for both event connection points and the stream reader
         poller = zmq.Poller()
@@ -91,7 +93,7 @@ class Server(Thread):
 
         if self.discovery:
             poller.register(self.discovery.handle, zmq.POLLIN)
-        print('Discovery is {}abled'.format('en' if self.discovery else 'dis'))
+        print(f'Discovery is {"en" if self.discovery else "dis"}abled')
 
         # Start the first simulation node
         self.addnodes()
@@ -122,6 +124,9 @@ class Server(Thread):
                     continue
                 # Receive the message
                 msg = sock.recv_multipart()
+                if not msg:
+                    # In the rare case that a message is empty, skip remaning processing
+                    continue
 
                 # Check if this is a stream message: these should be forwarded unprocessed.
                 if sock == self.be_stream:
@@ -155,7 +160,7 @@ class Server(Thread):
                         continue # No message needs to be forwarded
 
                     elif eventname == b'NODESCHANGED':
-                        servers_upd = msgpack.unpackb(data, encoding='utf-8')
+                        servers_upd = msgpack.unpackb(data, raw=False)
                         # Update the route with a hop to the originating server
                         for server in servers_upd.values():
                             server['route'].insert(0, sender_id)
@@ -180,7 +185,7 @@ class Server(Thread):
                             # the worker a new scenario, otherwise store it in
                             # the available worker list
                             if self.scenarios:
-                                self.sendScenario(sender_id)
+                                self.sendscenario(sender_id)
                             else:
                                 self.avail_workers[sender_id] = route
                         else:
@@ -198,17 +203,17 @@ class Server(Thread):
                         continue
 
                     elif eventname == b'BATCH':
-                        scentime, scencmd = msgpack.unpackb(data, encoding='utf-8')
+                        scentime, scencmd = msgpack.unpackb(data, raw=False)
                         self.scenarios = [scen for scen in split_scenarios(scentime, scencmd)]
                         # Check if the batch list contains scenarios
                         if not self.scenarios:
                             echomsg = 'No scenarios defined in batch file!'
                         else:
-                            echomsg = 'Found {} scenarios in batch'.format(len(self.scenarios))
+                            echomsg = f'Found {len(self.scenarios)} scenarios in batch'
                             # Send scenario to available nodes (nodes that are in init or hold mode):
                             while self.avail_workers and self.scenarios:
                                 worker_id = next(iter(self.avail_workers))
-                                self.sendScenario(worker_id)
+                                self.sendscenario(worker_id)
                                 self.avail_workers.pop(worker_id)
 
                             # If there are still scenarios left, determine and

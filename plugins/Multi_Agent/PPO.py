@@ -12,6 +12,8 @@ from bluesky.tools import geo
 from operator import itemgetter
 from shapely.geometry import LineString
 import numba as nb
+import csv
+from visdom import Visdom
 
 ################################
 ##                            ##
@@ -82,15 +84,16 @@ def getClosestAC_Distance(self,state,traf,route_keeper):
                 continue
 
 
-
-            return dist[i][0]
+            return dist[i][0],int(dist[i][1])
 
 
     else:
-        return np.inf
+        return np.inf,np.inf
 
 
-    return np.inf
+    return np.inf,np.inf
+
+    
 
 
 def proximal_policy_optimization_loss(advantage, old_prediction):
@@ -131,7 +134,6 @@ class PPO_Agent:
         self.getRouteDistances()
         self.model_check = []
         self.model = self._build_PPO()
-
         self.count = 0
 
 
@@ -403,15 +405,22 @@ class PPO_Agent:
                 total_reward = np.append(total_reward,discounted_rewards,axis=0)
                 total_A = np.append(total_A,A,axis=0)
                 total_advantage = np.append(total_advantage,advantages,axis=0)
+
                 total_policy = np.append(total_policy,policy,axis=0)
 
 
-        total_A = (total_A - total_A.mean())/(total_A.std() + 1e-8)
+        total_A = (total_A - total_A.mean())/(total_A.std() + 1e-8) 
+        total_reward_mean = total_reward.mean()
+        print(total_reward.mean())
         self.model.fit({'states':total_state,'context':total_context,'empty':np.zeros((total_length,HIDDEN_SIZE)),'A':total_A,'old_pred':total_policy}, {'policy_out':total_advantage,'value_out':total_reward}, shuffle=True,batch_size=total_state.shape[0],epochs=8, verbose=0)
 
-
-        self.max_agents = 0
-        self.experience = {}
+        #path = "data1.csv"
+        #with open(path,'a+') as f:
+            #csv_write = csv.writer(f)
+            #csv_write.writerow([total_reward_mean])
+        #self.wind.line([total_reward_mean],[(self.episode_count+1)/5],win = 'train_loss',update='append')
+        #self.max_agents = 0
+        #self.experience = {}
 
 
 
@@ -433,7 +442,9 @@ class PPO_Agent:
         else:
 
             self.model.save_weights('model_{}.h5'.format(case_study))
-
+    
+    def save_worst(self,num,case_study='A'):
+        self.model.save_weights('worst_model_{}_{}.h5'.format(case_study,num))
 
     # action implementation for the agent
     def act(self,state,context):
@@ -455,7 +466,7 @@ class PPO_Agent:
         """calulate reward and determine if terminal or not"""
         T = 0
         type_ = 0
-        dist = getClosestAC_Distance(self,[traf.lat[index],traf.lon[index],traf.id[index]],traf,route_keeper)
+        dist, nearest = getClosestAC_Distance(self,[traf.lat[index],traf.lon[index],traf.id[index]],traf,route_keeper)
         if dist < 3:
             T = True
             type_ = 1
@@ -470,7 +481,8 @@ class PPO_Agent:
         if d_goal < 5 and T == 0:
             T = True
             type_ = 2
+            nearest = 100
 
         self.dist_goal[traf.id[index]] = d_goal
 
-        return T,type_
+        return T,type_,nearest

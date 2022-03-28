@@ -1,7 +1,6 @@
 from math import cos, atan2, radians, degrees
 from numpy import array
 import bluesky as bs
-from bluesky.stack import cmdsynon
 
 from bluesky.tools import geo
 from bluesky.tools.misc import findnearest, cmdsplit
@@ -82,9 +81,9 @@ def radarclick(cmdline, lat, lon, acdata=None, route=None):
     # Insert: nearest aircraft id
     else:
 
-        # Check for synonyms (dictionary is imported from stack)
-        if cmd in cmdsynon:
-           cmd = cmdsynon[cmd.upper()]
+        # TODO: Check for synonyms (dictionary is imported from stack)
+        # if cmd in cmdsynon:
+        #    cmd = cmdsynon[cmd.upper()]
 
         # Try to find command in clickcmd dictionary
         try:
@@ -187,6 +186,7 @@ def radarclick(cmdline, lat, lon, acdata=None, route=None):
                 # Is it the last argument? (then we will insert ENTER as well)
                 if curarg + 1 >= totargs:
                     tostack = cmdline + todisplay
-                    todisplay = todisplay + '\n'
+                    # todisplay = todisplay + '\n'
+                    todisplay = ''
 
     return tostack, todisplay

@@ -8,13 +8,15 @@ from bluesky.tools.aero import ft
 from bluesky.tools import geo, areafilter
 from Multi_Agent.PPO import PPO_Agent
 import geopy.distance
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import random
 import pandas as pd
 from operator import itemgetter
+from visdom import Visdom
 from shapely.geometry import LineString
 import numba as nb
 import time
+tf.disable_eager_execution()
 
 ## For running on GPU
 # from keras.backend.tensorflow_backend import set_session
@@ -30,6 +32,7 @@ import time
 
 ### Initialization function of your plugin. Do not change the name of this
 ### function, as it is the way BlueSky recognises this file as a plugin.
+### show the training process with random routes and speeds
 def init_plugin():
 
 
@@ -56,6 +59,11 @@ def init_plugin():
     global choices
     global positions
     global start
+    global wind
+    global wind2
+    global opts1
+    global opts2
+    global worst_goals
 
     num_success_train = []
     num_collisions_train = []
@@ -70,7 +78,7 @@ def init_plugin():
     num_intruders = 4
 
     num_ac = 0
-    max_ac = 15
+    max_ac = 30
     best_reward = -10000000
     ac_counter = 0
     n_states = 5
@@ -79,10 +87,38 @@ def init_plugin():
     positions = np.load('./routes/case_study_b_route.npy')
     choices = [20,25,30] # 4 minutes, 5 minutes, 6 minutes
     route_queue = random.choices(choices,k=positions.shape[0])
-
+    
+    
     agent = PPO_Agent(n_states,3,positions.shape[0],100000,positions,num_intruders)
+    agent.load('train_model_B.h5')
     counter = 0
     start = time.time()
+    opts1 = {
+        "title": 'train_data',
+        "xlabel": 'x',
+        "ylabel": 'y',
+        "width": 600,
+        "height": 400,
+        "legend": ['goals_made','collisions_made']
+    }
+    opts2 = {
+        "title": 'train_data2',
+        "rownames":['KL0','KL1','KL2','KL3','KL4','KL5','KL6','KL7','KL8','KL9','KL10','KL11','KL12','KL13','KL14','KL15','KL16','KL17','KL18','KL19','KL20','KL21','KL22','KL23','KL24','KL25','KL26','KL27','KL28','KL29'],
+        "xlabel": 'id',
+        "ylabel": 'speed',
+        "width": 600,
+        "height": 400,
+        "numbins":30
+    }
+    wind = Visdom()
+    wind2 = Visdom()
+        # 初始化窗口信息
+    wind.line(X=[0.], # Y的第一个点的坐标
+		  Y=[[0.,0.]], # X的第一个点的坐标
+		  win = 'train_data', # 窗口的名称
+		  opts = opts1 # 图像的标例
+)
+    wind2.bar(X=np.zeros(30),win = 'train_data2',opts=opts2)
 
 
     # Addtional initilisation code
@@ -142,6 +178,11 @@ def update():
     global previous_action
     global choices
     global start
+    global opts2
+    global wind2
+    global speedvisdomlist
+    
+    speedvisdomlist = [0]*30
 
     store_terminal = {}
 
@@ -152,6 +193,8 @@ def update():
             for i in range(len(positions)):
                 lat,lon,glat,glon,h = positions[i]
                 stack.stack('CRE KL{}, A320, {}, {}, {}, 25000, 251'.format(ac_counter,lat,lon,h))
+                speedvisdomlist[ac_counter] = 251
+                wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
                 stack.stack('ADDWPT KL{} {}, {}'.format(ac_counter,glat,glon))
                 route_keeper[ac_counter] = i
                 num_ac += 1
@@ -162,6 +205,8 @@ def update():
                 if counter == route_queue[k]:
                     lat,lon,glat,glon,h = positions[k]
                     stack.stack('CRE KL{}, A320, {}, {}, {}, 25000, 251'.format(ac_counter,lat,lon,h))
+                    speedvisdomlist[ac_counter] = 251
+                    wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
                     stack.stack('ADDWPT KL{} {}, {}'.format(ac_counter,glat,glon))
                     route_keeper[ac_counter] = k
 
@@ -177,14 +222,18 @@ def update():
 
     store_terminal = np.zeros(len(traf.id),dtype=int)
     for i in range(len(traf.id)):
-        T,type_ = agent.update(traf,i,route_keeper)
+        T,type_,nearest = agent.update(traf,i,route_keeper)
         id_ = traf.id[i]
 
         if T:
             stack.stack('DEL {}'.format(id_))
+            speedvisdomlist[int(id_[2:])] = 0
+            wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
             num_ac -=1
             if type_ == 1:
                 collisions += 1
+                if collisions%2 ==0:
+                    stack.stack('echo plane {} and plane {} had collision'.format(traf.id[nearest],id_))
             if type_ == 2:
                 success += 1
 
@@ -253,6 +302,8 @@ def update():
                 speed = int(np.round((traf.cas[index]/tools.geo.nm)*3600))
 
             stack.stack('{} SPD {}'.format(id_,speed))
+            speedvisdomlist[int(id_[2:])] = speed
+            wind2.bar(X=speedvisdomlist,win = 'train_data2',opts=opts2)
             new_actions[id_] = action
 
 
@@ -285,6 +336,7 @@ def reset():
     global choices
     global positions
     global start
+    global worst_goals
 
     if (agent.episode_count+1) % 5 == 0:
         agent.train()
@@ -330,9 +382,16 @@ def reset():
 
     agent.save(case_study='B')
 
+    if agent.episode_count ==0:
+        agent.save_worst(goals_made,case_study='B')
+        worst_goals = goals_made
+    elif goals_made < worst_goals:
+        agent.save_worst(goals_made,case_study='B')
+        worst_goals = goals_made
 
     print("Episode: {} | Reward: {} | Best Reward: {}".format(agent.episode_count,goals_made,best_reward))
 
+    wind.line(X =[agent.episode_count],Y=[[goals_made,max_ac-goals_made]],win = 'train_data',update='append',opts = opts1)
 
     agent.episode_count += 1
 

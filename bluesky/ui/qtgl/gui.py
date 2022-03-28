@@ -3,7 +3,6 @@ from PyQt5.QtCore import Qt, QEvent, qInstallMessageHandler, \
     QtWarningMsg, QtCriticalMsg, QtFatalMsg, \
     QT_VERSION, QT_VERSION_STR
 from PyQt5.QtWidgets import QApplication, QErrorMessage
-from PyQt5.QtOpenGL import QGLFormat
 
 import bluesky as bs
 from bluesky.ui.qtgl.guiclient import GuiClient
@@ -12,10 +11,6 @@ from bluesky.ui.qtgl.customevents import NUMCUSTOMEVENTS
 
 
 print(('Using Qt ' + QT_VERSION_STR + ' for windows and widgets'))
-
-# Register settings defaults
-bs.settings.set_variable_defaults(scenario_path='scenario',
-                                  event_port=9000, stream_port=9001)
 
 
 def gui_msg_handler(msgtype, context, msg):
@@ -28,7 +23,7 @@ def gui_msg_handler(msgtype, context, msg):
         exit()
 
 
-def start(mode):
+def start(mode, hostname=None):
     # Install message handler for Qt messages
     qInstallMessageHandler(gui_msg_handler)
 
@@ -56,17 +51,6 @@ def start(mode):
     handler = QErrorMessage.qtHandler()
     handler.setWindowFlags(Qt.WindowStaysOnTopHint)
 
-    # Check and set OpenGL capabilities
-    if not QGLFormat.hasOpenGL():
-        raise RuntimeError('No OpenGL support detected for this system!')
-    else:
-        f = QGLFormat()
-        f.setVersion(3, 3)
-        f.setProfile(QGLFormat.CoreProfile)
-        f.setDoubleBuffer(True)
-        QGLFormat.setDefaultFormat(f)
-        print(('QGLWidget initialized for OpenGL version %d.%d' % (f.majorVersion(), f.minorVersion())))
-
     splash.showMessage('Constructing main window')
     app.processEvents()
     win = MainWindow(mode)
@@ -76,13 +60,14 @@ def start(mode):
     splash.finish(win)
     # If this instance of the gui is started in client-only mode, show
     # server selection dialog
-    if mode == 'client':
+    if mode == 'client' and hostname is None:
         dialog = DiscoveryDialog(win)
         dialog.show()
         bs.net.start_discovery()
 
     else:
-        client.connect(event_port=bs.settings.event_port,
+        client.connect(hostname=hostname or 'localhost',
+                       event_port=bs.settings.event_port,
                        stream_port=bs.settings.stream_port)
 
     # Start the Qt main loop

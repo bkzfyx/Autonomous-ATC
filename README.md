@@ -1,44 +1,6 @@
-# Autonomous Air Traffic Controller: A Deep Multi-Agent Reinforcement Learning Approach 
-## Marc Brittain
-### mwb AT iastate DOT edu
-
-Fork of the BlueSky Air Traffic Simulator developed by TU Delft. The original ReadMe can be seen below. Note that this fork has been minimally changed from the LSTM branch for clarity.
-
-
-To run each of the individual case study as described in each paper please run the following steps:
-
-1. Download N_Closest branch of this repository
-2. Download required modules:
->>  * tensorflow 1.x
->>  * keras
->>  * numpy
->>  * shapely
->>  * geopy
->>  * pandas
->>  * numba
-
-3. To run Case Study A open up the `settings.cfg` and change `enabled_plugins = ['case_study_a']`
-4. Then you can run `python BlueSky.py --sim --detached --scenfile multi_agent.scn`. This will kick off a training run.
-
-
-If any of this work helped in your project or research I would love to hear about it! Please send me and email at the address listed above for comments, questions, or just to say hi.
-
-
-
-
-Please cite the paper below in your work :) 
-
-
-[paper](https://arxiv.org/abs/1905.01303)
-
-
-
-
-------------------------------------------------------------------------------------------------------------------------------
-
-
-
 # BlueSky - The Open Air Traffic Simulator
+
+[![Open in Visual Studio Code](https://open.vscode.dev/badges/open-in-vscode.svg)](https://open.vscode.dev/TUDelft-CNS-ATM/bluesky)
 
 BlueSky is meant as a tool to perform research on Air Traffic Management and Air Traffic Flows, and is distributed under the GNU General Public License v3.
 

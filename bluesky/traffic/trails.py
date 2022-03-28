@@ -3,7 +3,7 @@ from math import *
 import numpy as np
 import bluesky as bs
 from bluesky import settings
-from bluesky.tools.trafficarrays import TrafficArrays, RegisterElementParameters
+from bluesky.core import TrafficArrays
 
 
 class Trails(TrafficArrays):
@@ -19,7 +19,7 @@ class Trails(TrafficArrays):
     """
 
     def __init__(self,dttrail=10.):
-        super(Trails, self).__init__()
+        super().__init__()
         self.active = False  # Wether or not to show trails
         self.dt = dttrail    # Resolution of trail pieces in time
         self.pygame = (bs.gui_type == 'pygame') # Trails are different for pygame
@@ -51,7 +51,7 @@ class Trails(TrafficArrays):
         self.bgtime = np.array([])
         self.bgcol = []
 
-        with RegisterElementParameters(self):
+        with self.settrafarrays():
             self.accolor = []
             self.lastlat = np.array([])
             self.lastlon = np.array([])
@@ -62,18 +62,18 @@ class Trails(TrafficArrays):
         return
 
     def create(self,n=1):
-        super(Trails, self).create(n)
+        super().create(n)
 
         self.accolor[-1] = self.defcolor
         self.lastlat[-1] = bs.traf.lat[-1]
         self.lastlon[-1] = bs.traf.lon[-1]
 
-    def update(self, t):
+    def update(self):
         self.acid    = bs.traf.id
         if not self.active:
             self.lastlat = bs.traf.lat
             self.lastlon = bs.traf.lon
-            self.lasttim[:] = t
+            self.lasttim[:] = bs.sim.simt
             return
         """Add linepieces for trails based on traffic data"""
 
@@ -85,7 +85,7 @@ class Trails(TrafficArrays):
         lsttime = []
 
         # Check for update
-        delta = t - self.lasttim
+        delta = bs.sim.simt - self.lasttim
         idxs = np.where(delta > self.dt)[0]
 
         # Add all a/c which need the update
@@ -98,7 +98,7 @@ class Trails(TrafficArrays):
             lstlon0.append(self.lastlon[i])
             lstlat1.append(bs.traf.lat[i])
             lstlon1.append(bs.traf.lon[i])
-            lsttime.append(t)
+            lsttime.append(bs.sim.simt)
 
             if isinstance(self.col, np.ndarray):
                 # print type(trailcol[i])
@@ -112,7 +112,7 @@ class Trails(TrafficArrays):
             # Update aircraft record
             self.lastlat[i] = bs.traf.lat[i]
             self.lastlon[i] = bs.traf.lon[i]
-            self.lasttim[i] = t
+            self.lasttim[i] = bs.sim.simt
 
         # When a/c is no longer part of trail semgment,
         # it is no longer a/c data => move to the GUI buffer (send or draw)
@@ -130,7 +130,7 @@ class Trails(TrafficArrays):
             self.newlat1.extend(lstlat1)
             self.newlon1.extend(lstlon1)
         # Update colours
-        self.fcol = (1. - np.minimum(self.tcol0, np.abs(t - self.time)) / self.tcol0)
+        self.fcol = (1. - np.minimum(self.tcol0, np.abs(bs.sim.simt - self.time)) / self.tcol0)
 
         return
 
@@ -231,6 +231,6 @@ class Trails(TrafficArrays):
     def reset(self):
         # This ensures that the traffic arrays (which size is dynamic)
         # are all reset as well, so all lat,lon,sdp etc but also objects adsb
-        super(Trails, self).reset()
+        super().reset()
         self.clear()
         self.active = False

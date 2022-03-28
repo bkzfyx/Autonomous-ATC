@@ -100,7 +100,7 @@ def resolve(dbconf, traf):
     # Now assign in the traf class --------------------------------------------
     # Change autopilot desired speed
     dbconf.asasspd=vtas2eas(np.where(acccontrol==0,traf.gs,\
-        np.where(acccontrol>0,dbconf.vmax,dbconf.vmin)),traf.alt)
+        np.where(acccontrol>0,traf.perf.vmax,traf.perf.vmin)),traf.alt)
     # Set acceleration for aircraft in conflict
     traf.ax=np.where(dbconf.asasactive,abs(acccontrol),kts)
     # Change autopilot desired heading
@@ -108,7 +108,7 @@ def resolve(dbconf, traf):
         np.where(bankcontrol>0,traf.trk+90,traf.trk-90))%360
 
     # Set bank angle for aircraft in conflict
-    traf.aphi=np.radians(np.where(dbconf.asasactive,np.abs(bankcontrol),25.))
+    traf.ap.aphi=np.radians(np.where(dbconf.asasactive,np.abs(bankcontrol),25.))
 
     # Change autopilot desired altitude
     traf.aalt=np.where(climbcontrol==0,traf.alt,\
@@ -152,7 +152,7 @@ def Difgamehor(traf, dbconf,own,wrn):
     horC = dbconf.Controls[tuple(dstate)][pirates]
 
     # Find vertical controls
-    verticalconflict = np.abs(traf.alt[own]-traf.alt[wrn])<dbconf.Rm
+    verticalconflict = np.abs(traf.alt[own]-traf.alt[wrn])<dbconf.R * self.resofach
     if verticalconflict:
         if traf.alt[own]<traf.alt[wrn]:
             verC = np.array([0])

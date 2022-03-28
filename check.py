@@ -80,10 +80,6 @@ if qt:
 
                 class GLTest(QGLWidget):
                     gl_version = 0.0
-
-                    def __init__(self):
-                        super(GLTest, self).__init__()
-
                     def initializeGL(self):
                         GLTest.gl_version = float(ogl.glGetString(ogl.GL_VERSION)[:3])
 
@@ -101,6 +97,15 @@ if qt:
             except:
                 print('[FAIL]')
                 print('Could not determine GL version')
+
+            print("Checking for pyopengl-accelerate", end=' ')
+        try:
+            import OpenGL_accelerate
+        except ImportError:
+            print("[FAIL]")
+        else:
+            print('[OK]')
+
 
 print("Checking for pygame             ", end=' ')
 try:
@@ -124,7 +129,8 @@ if np and sp and mpl:
 
 print("Checking bluesky modules")
 try:
-    from bluesky import *
+    import bluesky
+    bluesky.init(mode='client')
     from bluesky.ui import *
     from bluesky.stack import *
     from bluesky.simulation import *

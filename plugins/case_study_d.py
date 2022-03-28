@@ -8,13 +8,14 @@ from bluesky.tools.aero import ft
 from bluesky.tools import geo, areafilter
 from Multi_Agent.PPO import PPO_Agent
 import geopy.distance
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import random
 import pandas as pd
 from operator import itemgetter
 from shapely.geometry import LineString
 import numba as nb
 import time
+tf.disable_eager_execution()
 
 ## For running on GPU
 # from keras.backend.tensorflow_backend import set_session

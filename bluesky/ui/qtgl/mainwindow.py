@@ -3,7 +3,7 @@ import platform
 import os
 
 from PyQt5.QtWidgets import QApplication as app
-from PyQt5.QtCore import Qt, pyqtSlot, QTimer, QItemSelectionModel, QSize, QEvent
+from PyQt5.QtCore import Qt, pyqtSlot, QTimer, QItemSelectionModel, QSize
 from PyQt5.QtGui import QPixmap, QIcon
 from PyQt5.QtWidgets import QMainWindow, QSplashScreen, QTreeWidgetItem, \
     QPushButton, QFileDialog, QDialog, QTreeWidget, QVBoxLayout, \
@@ -14,33 +14,36 @@ from PyQt5 import uic
 import bluesky as bs
 from bluesky.tools.misc import tim2txt
 from bluesky.network import get_ownip
+from bluesky.ui import palette
 
 # Child windows
 from bluesky.ui.qtgl.docwindow import DocWindow
 from bluesky.ui.qtgl.radarwidget import RadarWidget
 from bluesky.ui.qtgl.infowindow import InfoWindow
-from bluesky.ui.qtgl.nd import ND
-from bluesky.ui.pygame.dialog import fileopen
+from bluesky.ui.qtgl.settingswindow import SettingsWindow
+# from bluesky.ui.qtgl.nd import ND
 
-is_osx = platform.system() == 'Darwin'
+if platform.system().lower() == "windows":
+    from bluesky.ui.pygame.dialog import fileopen
 
 # Register settings defaults
-bs.settings.set_variable_defaults(gfx_path='data/graphics',
-                                  stack_text_color=(0, 255, 0),
-                                  stack_background_color=(102, 102, 102))
+bs.settings.set_variable_defaults(gfx_path='data/graphics')
 
-fg = bs.settings.stack_text_color
-bg = bs.settings.stack_background_color
+palette.set_default_colours(stack_text=(0, 255, 0),
+                            stack_background=(102, 102, 102))
+
+fg = palette.stack_text
+bg = palette.stack_background
 
 class Splash(QSplashScreen):
     """ Splash screen: BlueSky logo during start-up"""
     def __init__(self):
-        super(Splash, self).__init__(QPixmap(os.path.join(bs.settings.gfx_path, 'splash.gif')), Qt.WindowStaysOnTopHint)
+        super().__init__(QPixmap(os.path.join(bs.settings.gfx_path, 'splash.gif')), Qt.WindowStaysOnTopHint)
 
 
 class DiscoveryDialog(QDialog):
     def __init__(self, parent=None):
-        super(DiscoveryDialog, self).__init__(parent)
+        super().__init__(parent)
         self.setModal(True)
         self.setMinimumSize(200,200) # To prevent Geometry error
         self.hosts = []
@@ -89,7 +92,7 @@ class MainWindow(QMainWindow):
     modes = ['Init', 'Hold', 'Operate', 'End']
 
     def __init__(self, mode):
-        super(MainWindow, self).__init__()
+        super().__init__()
         # Running mode of this gui. Options:
         #  - server-gui: Normal mode, starts bluesky server together with gui
         #  - client: starts only gui in client mode, can connect to existing
@@ -97,8 +100,9 @@ class MainWindow(QMainWindow):
         self.mode = mode
 
         self.radarwidget = RadarWidget()
-        self.nd = ND(shareWidget=self.radarwidget)
+        # self.nd = ND(shareWidget=self.radarwidget)
         self.infowin = InfoWindow()
+        self.settingswin = SettingsWindow()
 
         try:
             self.docwin = DocWindow(self)
@@ -106,11 +110,11 @@ class MainWindow(QMainWindow):
             print('Couldnt make docwindow:', e)
         # self.aman = AMANDisplay()
         gltimer = QTimer(self)
-        gltimer.timeout.connect(self.radarwidget.updateGL)
-        gltimer.timeout.connect(self.nd.updateGL)
+        gltimer.timeout.connect(self.radarwidget.update)
+        # gltimer.timeout.connect(self.nd.updateGL)
         gltimer.start(50)
 
-        if is_osx:
+        if platform.system() == 'Darwin':
             app.instance().setWindowIcon(QIcon(os.path.join(bs.settings.gfx_path, 'bluesky.icns')))
         else:
             app.instance().setWindowIcon(QIcon(os.path.join(bs.settings.gfx_path, 'icon.gif')))
@@ -127,7 +131,7 @@ class MainWindow(QMainWindow):
                     self.pandown :    ['pandown.svg', 'Pan down', self.buttonClicked],
                     self.ic :         ['stop.svg', 'Initial condition', self.buttonClicked],
                     self.op :         ['play.svg', 'Operate', self.buttonClicked],
-                    self.hold :       ['pause.svg', 'Hold', self.buttonClicked],
+                    self.hold :       ['hold.svg', 'Hold', self.buttonClicked],
                     self.fast :       ['fwd.svg', 'Enable fast-time', self.buttonClicked],
                     self.fast10 :     ['ffwd.svg', 'Fast-forward 10 seconds', self.buttonClicked],
                     self.sameic :     ['frwd.svg', 'Restart same IC', self.buttonClicked],
@@ -154,6 +158,7 @@ class MainWindow(QMainWindow):
         self.action_Open.triggered.connect(self.show_file_dialog)
         self.action_Save.triggered.connect(self.buttonClicked)
         self.actionBlueSky_help.triggered.connect(self.show_doc_window)
+        self.actionSettings.triggered.connect(self.settingswin.show)
 
         self.radarwidget.setParent(self.centralwidget)
         self.verticalLayout.insertWidget(0, self.radarwidget, 1)
@@ -172,8 +177,9 @@ class MainWindow(QMainWindow):
         self.nodetree.header().resizeSection(0, 130)
         self.nodetree.itemClicked.connect(self.nodetreeClicked)
         self.maxhostnum = 0
-        self.hosts      = dict()
-        self.nodes      = dict()
+        self.hosts = dict()
+        self.nodes = dict()
+        self.actnode = ''
 
         fgcolor = '#%02x%02x%02x' % fg
         bgcolor = '#%02x%02x%02x' % bg
@@ -181,14 +187,7 @@ class MainWindow(QMainWindow):
         self.stackText.setStyleSheet('color:' + fgcolor + '; background-color:' + bgcolor)
         self.lineEdit.setStyleSheet('color:' + fgcolor + '; background-color:' + bgcolor)
 
-        self.nconf_cur = self.nconf_tot = self.nlos_cur = self.nlos_tot = 0
-
-        app.instance().installEventFilter(self)
-
-    def eventFilter(self, widget, event):
-        if event.type() != QEvent.KeyPress:
-            return False
-
+    def keyPressEvent(self, event):
         if event.modifiers() & Qt.ShiftModifier \
                 and event.key() in [Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right]:
             dlat = 1.0 / (self.radarwidget.zoom * self.radarwidget.ar)
@@ -214,9 +213,7 @@ class MainWindow(QMainWindow):
         else:
             # All other events go to the BlueSky console
             self.console.keyPressEvent(event)
-
         event.accept()
-        return True
 
     def closeEvent(self, event=None):
         # Send quit to server if we own the host
@@ -226,9 +223,11 @@ class MainWindow(QMainWindow):
         # return True
 
     def actnodedataChanged(self, nodeid, nodedata, changed_elems):
-        node = self.nodes[nodeid]
-        self.nodelabel.setText('<b>Node</b> {}:{}'.format(node.host_num, node.node_num))
-        self.nodetree.setCurrentItem(node, 0, QItemSelectionModel.ClearAndSelect)
+        if nodeid != self.actnode:
+            self.actnode = nodeid
+            node = self.nodes[nodeid]
+            self.nodelabel.setText('<b>Node</b> {}:{}'.format(node.host_num, node.node_num))
+            self.nodetree.setCurrentItem(node, 0, QItemSelectionModel.ClearAndSelect)
 
     def nodesChanged(self, data):
         for host_id, host_data in data.items():
@@ -272,6 +271,7 @@ class MainWindow(QMainWindow):
         ''' Processing of events from simulation nodes. '''
         # ND window for selected aircraft
         if eventname == b'SHOWND':
+            return
             if eventdata:
                 self.nd.setAircraftID(eventdata)
             self.nd.setVisible(not self.nd.isVisible())
@@ -290,13 +290,9 @@ class MainWindow(QMainWindow):
             simt = tim2txt(simt)[:-3]
             self.setNodeInfo(sender_id, simt, scenname)
             if sender_id == bs.net.actnode():
+                acdata = bs.net.get_nodedata().acdata
                 self.siminfoLabel.setText(u'<b>t:</b> %s, <b>\u0394t:</b> %.2f, <b>Speed:</b> %.1fx, <b>UTC:</b> %s, <b>Mode:</b> %s, <b>Aircraft:</b> %d, <b>Conflicts:</b> %d/%d, <b>LoS:</b> %d/%d'
-                    % (simt, simdt, speed, simutc, self.modes[state], ntraf, self.nconf_cur, self.nconf_tot, self.nlos_cur, self.nlos_tot))
-        elif streamname == b'ACDATA':
-            self.nconf_cur = data['nconf_cur']
-            self.nconf_tot = data['nconf_tot']
-            self.nlos_cur = data['nlos_cur']
-            self.nlos_tot = data['nlos_tot']
+                    % (simt, simdt, speed, simutc, self.modes[state], ntraf, acdata.nconf_cur, acdata.nconf_tot, acdata.nlos_cur, acdata.nlos_tot))
 
     def setNodeInfo(self, connid, time, scenname):
         node = self.nodes.get(connid)
@@ -336,15 +332,15 @@ class MainWindow(QMainWindow):
         elif self.sender() == self.ic:
             self.show_file_dialog()
         elif self.sender() == self.sameic:
-            bs.net.send_event(b'STACKCMD', 'IC IC')
+            bs.net.send_event(b'STACK', 'IC IC')
         elif self.sender() == self.hold:
-            bs.net.send_event(b'STACKCMD', 'HOLD')
+            bs.net.send_event(b'STACK', 'HOLD')
         elif self.sender() == self.op:
-            bs.net.send_event(b'STACKCMD', 'OP')
+            bs.net.send_event(b'STACK', 'OP')
         elif self.sender() == self.fast:
-            bs.net.send_event(b'STACKCMD', 'FF')
+            bs.net.send_event(b'STACK', 'FF')
         elif self.sender() == self.fast10:
-            bs.net.send_event(b'STACKCMD', 'FF 0:0:10')
+            bs.net.send_event(b'STACK', 'FF 0:0:10')
         elif self.sender() == self.showac:
             actdata.show_traf = not actdata.show_traf
         elif self.sender() == self.showpz:
@@ -366,24 +362,24 @@ class MainWindow(QMainWindow):
         elif self.sender() == self.showmap:
             actdata.show_map = not actdata.show_map
         elif self.sender() == self.action_Save:
-            bs.net.send_event(b'STACKCMD', 'SAVEIC')
+            bs.net.send_event(b'STACK', 'SAVEIC')
         elif hasattr(self.sender(), 'host_id'):
             bs.net.send_event(b'ADDNODES', 1)
 
     def show_file_dialog(self):
         # Due to Qt5 bug in Windows, use temporarily Tkinter
-        if platform.system().lower()=="windows":
+        if platform.system().lower()=='windows':
             fname = fileopen()
         else:
-            response = QFileDialog.getOpenFileName(self, 'Open file', bs.settings.scenario_path, 'Scenario files (*.scn)')
-            if type(response) is tuple:
-                fname = response[0]
+            if platform.system().lower() == 'darwin':
+                response = QFileDialog.getOpenFileName(self, 'Open file', bs.settings.scenario_path, 'Scenario files (*.scn)')
             else:
-                fname = response
+                response = QFileDialog.getOpenFileName(self, 'Open file', bs.settings.scenario_path, 'Scenario files (*.scn)', options=QFileDialog.DontUseNativeDialog)
+            fname = response[0] if isinstance(response, tuple) else response
 
         # Send IC command to stack with filename if selected, else do nothing
-        if len(fname) > 0:
-            self.console.stack('IC ' + str(fname))
+        if fname:
+            bs.stack.stack('IC ' + str(fname))
 
     def show_doc_window(self, cmd=''):
         self.docwin.show_cmd_doc(cmd)
