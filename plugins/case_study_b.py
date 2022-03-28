@@ -63,7 +63,7 @@ def init_plugin():
     global wind2
     global opts1
     global opts2
-    global worst_goals
+    #global worst_goals
     pid = os.getpid()
     print('pid={}'.format(pid))
     with open('bluesky_pid.txt','w') as f:
@@ -338,7 +338,7 @@ def reset():
     global choices
     global positions
     global start
-    global worst_goals
+    #global worst_goals
 
     if (agent.episode_count+1) % 5 == 0:
         agent.train()
@@ -384,12 +384,12 @@ def reset():
 
     agent.save(case_study='B')
 
-    if agent.episode_count ==0:
-        agent.save_worst(goals_made,case_study='B')
-        worst_goals = goals_made
-    elif goals_made < worst_goals:
-        agent.save_worst(goals_made,case_study='B')
-        worst_goals = goals_made
+    #if agent.episode_count ==0:
+        #agent.save_worst(goals_made,case_study='B')
+        #worst_goals = goals_made
+    #elif goals_made < worst_goals:
+        #agent.save_worst(goals_made,case_study='B')
+        #worst_goals = goals_made
 
     print("Episode: {} | Reward: {} | Best Reward: {}".format(agent.episode_count,goals_made,best_reward))
 
